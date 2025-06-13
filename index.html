@@ -83,6 +83,30 @@
             overflow-y: auto;
             white-space: pre-wrap;
             line-height: 1.5;
+            max-height: 60%;
+        }
+
+        .output-panel {
+            background: #0f1419;
+            color: #00ff00;
+            font-family: 'Consolas', 'Monaco', 'Courier New', monospace;
+            font-size: 14px;
+            padding: 20px;
+            overflow-y: auto;
+            white-space: pre-wrap;
+            line-height: 1.5;
+            border-top: 2px solid rgba(0, 255, 0, 0.3);
+            min-height: 150px;
+            max-height: 40%;
+        }
+
+        .output-header {
+            background: linear-gradient(90deg, #00ff00 0%, #32cd32 100%);
+            color: black;
+            padding: 10px 20px;
+            font-size: 16px;
+            font-weight: bold;
+            text-align: center;
         }
 
         .controls {
@@ -119,22 +143,26 @@
             border-radius: 10px !important;
         }
 
-        /* Custom scrollbar for code output */
-        .code-output::-webkit-scrollbar {
+        /* Custom scrollbar for code output and console */
+        .code-output::-webkit-scrollbar,
+        .output-panel::-webkit-scrollbar {
             width: 8px;
         }
 
-        .code-output::-webkit-scrollbar-track {
+        .code-output::-webkit-scrollbar-track,
+        .output-panel::-webkit-scrollbar-track {
             background: rgba(255, 255, 255, 0.1);
             border-radius: 4px;
         }
 
-        .code-output::-webkit-scrollbar-thumb {
+        .code-output::-webkit-scrollbar-thumb,
+        .output-panel::-webkit-scrollbar-thumb {
             background: rgba(255, 255, 255, 0.3);
             border-radius: 4px;
         }
 
-        .code-output::-webkit-scrollbar-thumb:hover {
+        .code-output::-webkit-scrollbar-thumb:hover,
+        .output-panel::-webkit-scrollbar-thumb:hover {
             background: rgba(255, 255, 255, 0.5);
         }
     </style>
@@ -154,12 +182,20 @@
             </div>
             <div class="controls">
                 <button class="btn" onclick="generateCode()">Generate Code</button>
+                <button class="btn" onclick="runCode()">▶️ Run Code</button>
                 <button class="btn" onclick="clearWorkspace()">Clear All</button>
                 <button class="btn" onclick="downloadCode()">Download</button>
             </div>
             <div class="code-output" id="codeOutput">
 # Your Python code will appear here...
 # Start by dragging blocks from the toolbox!
+            </div>
+            <div class="output-header">
+                🖥️ Output Console
+            </div>
+            <div class="output-panel" id="outputConsole">
+> Ready to run your Python code!
+> Click "Run Code" to execute...
             </div>
         </div>
     </div>
@@ -399,6 +435,13 @@
                         </shadow>
                     </value>
                 </block>
+                <block type="wait_seconds">
+                    <value name="SECONDS">
+                        <shadow type="math_number">
+                            <field name="NUM">1</field>
+                        </shadow>
+                    </value>
+                </block>
             </category>
         </xml>`;
 
@@ -468,6 +511,109 @@
             }
         }
 
+        // Run Python code (basic interpreter simulation)
+        function runCode() {
+            try {
+                if (typeof Blockly.Python === 'undefined') {
+                    document.getElementById('outputConsole').textContent = '> Error: Python generator not loaded. Please refresh the page.';
+                    return;
+                }
+                
+                const code = Blockly.Python.workspaceToCode(workspace);
+                const outputConsole = document.getElementById('outputConsole');
+                
+                if (code.trim() === '') {
+                    outputConsole.textContent = '> No code to run! Please create some blocks first.';
+                    return;
+                }
+                
+                // Clear previous output
+                outputConsole.textContent = '> Running code...\n\n';
+                
+                // Simple Python interpreter simulation
+                const lines = code.split('\n');
+                let output = '';
+                let variables = {};
+                
+                for (let line of lines) {
+                    line = line.trim();
+                    if (line === '' || line.startsWith('#')) continue;
+                    
+                    try {
+                        // Handle print statements
+                        if (line.startsWith('print(') && line.endsWith(')')) {
+                            let content = line.slice(6, -1);
+                            
+                            // Handle string literals
+                            if ((content.startsWith('"') && content.endsWith('"')) || 
+                                (content.startsWith("'") && content.endsWith("'"))) {
+                                content = content.slice(1, -1);
+                                output += content + '\n';
+                            }
+                        // Handle if statements (basic)
+                        else if (line.startsWith('if ')) {
+                            output += '> Conditional statement detected\n';
+                        }
+                            // Handle variables
+                            else if (variables[content] !== undefined) {
+                                output += variables[content] + '\n';
+                            }
+                            // Handle simple expressions
+                            else {
+                                try {
+                                    // Simple math evaluation
+                                    if (/^[\d\s+\-*/().]+$/.test(content)) {
+                                        const result = eval(content);
+                                        output += result + '\n';
+                                    } else {
+                                        output += content + '\n';
+                                    }
+                                } catch (e) {
+                                    output += content + '\n';
+                                }
+                            }
+                        }
+                        // Handle simple variable assignments
+                        else if (line.includes(' = ')) {
+                            const [varName, varValue] = line.split(' = ');
+                            if (varValue.startsWith('"') && varValue.endsWith('"')) {
+                                variables[varName.trim()] = varValue.slice(1, -1);
+                            } else if (varValue.startsWith("'") && varValue.endsWith("'")) {
+                                variables[varName.trim()] = varValue.slice(1, -1);
+                            } else if (!isNaN(varValue)) {
+                                variables[varName.trim()] = parseFloat(varValue);
+                            }
+                        }
+                        // Handle for loops (basic)
+                        else if (line.startsWith('for ') && line.includes(' in range(')) {
+                            output += '> For loop detected (simplified execution)\n';
+                        }
+                        // Handle time.sleep (wait) statements
+                        else if (line.startsWith('time.sleep(') && line.endsWith(')')) {
+                            let seconds = line.slice(11, -1);
+                            if (!isNaN(seconds)) {
+                                output += `> Waiting ${seconds} second(s)...\n`;
+                                // In a real environment, this would actually wait
+                                // For simulation, we just show the message
+                            }
+                        }
+                    } catch (e) {
+                        output += '> Error executing line: ' + line + '\n';
+                    }
+                }
+                
+                if (output === '') {
+                    output = '> Code executed successfully (no output generated)\n> Note: time.sleep() calls are simulated in this environment\n';
+                }
+                
+                outputConsole.textContent = '> Execution completed:\n\n' + output;
+                
+            } catch (error) {
+                console.error('Error running code:', error);
+                document.getElementById('outputConsole').textContent = '> Error running code: ' + error.message;
+            }
+        }
+
         // Download generated code as Python file
         function downloadCode() {
             try {
@@ -507,6 +653,28 @@
             // Wait a bit for all scripts to load
             setTimeout(function() {
                 try {
+                    // Define custom wait block after Blockly is loaded
+                    Blockly.Blocks['wait_seconds'] = {
+                        init: function() {
+                            this.appendValueInput('SECONDS')
+                                .setCheck('Number')
+                                .appendField('wait')
+                                .appendField('seconds');
+                            this.setPreviousStatement(true, null);
+                            this.setNextStatement(true, null);
+                            this.setColour(180);
+                            this.setTooltip('Wait for the specified number of seconds');
+                            this.setHelpUrl('');
+                        }
+                    };
+
+                    // Python code generator for wait block
+                    Blockly.Python['wait_seconds'] = function(block) {
+                        const seconds = Blockly.Python.valueToCode(block, 'SECONDS', Blockly.Python.ORDER_ATOMIC) || '1';
+                        const code = 'time.sleep(' + seconds + ')\n';
+                        return code;
+                    };
+
                     // Add a simple "Hello World" example
                     const xml = '<xml xmlns="https://developers.google.com/blockly/xml"><block type="text_print" id="sample" x="100" y="100"><value name="TEXT"><shadow type="text"><field name="TEXT">Welcome to Python Blockly Builder!</field></shadow></value></block></xml>';
                     Blockly.Xml.domToWorkspace(Blockly.Xml.textToDom(xml), workspace);
