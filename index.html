@@ -1,0 +1,520 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Python Blockly Builder</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/blockly/10.2.2/blockly.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/blockly/10.2.2/blocks.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/blockly/10.2.2/javascript.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/blockly/10.2.2/python.min.js"></script>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            margin: 0;
+            padding: 0;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: #333;
+            overflow: hidden;
+        }
+
+        .container {
+            display: flex;
+            height: 100vh;
+            gap: 10px;
+            padding: 10px;
+        }
+
+        .workspace-container {
+            flex: 1;
+            background: rgba(255, 255, 255, 0.95);
+            border-radius: 15px;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            overflow: hidden;
+            position: relative;
+        }
+
+        .header {
+            background: linear-gradient(90deg, #4facfe 0%, #00f2fe 100%);
+            color: white;
+            padding: 15px 20px;
+            font-size: 24px;
+            font-weight: bold;
+            text-align: center;
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+        }
+
+        #blocklyDiv {
+            height: calc(100% - 60px);
+            width: 100%;
+        }
+
+        .code-panel {
+            width: 400px;
+            display: flex;
+            flex-direction: column;
+            background: rgba(26, 32, 44, 0.95);
+            border-radius: 15px;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            overflow: hidden;
+        }
+
+        .code-header {
+            background: linear-gradient(90deg, #ff6b6b 0%, #feca57 100%);
+            color: white;
+            padding: 15px 20px;
+            font-size: 18px;
+            font-weight: bold;
+            text-align: center;
+        }
+
+        .code-output {
+            flex: 1;
+            background: #1a202c;
+            color: #e2e8f0;
+            font-family: 'Consolas', 'Monaco', 'Courier New', monospace;
+            font-size: 14px;
+            padding: 20px;
+            overflow-y: auto;
+            white-space: pre-wrap;
+            line-height: 1.5;
+        }
+
+        .controls {
+            padding: 15px;
+            background: rgba(255, 255, 255, 0.1);
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
+        }
+
+        .btn {
+            background: linear-gradient(45deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 25px;
+            cursor: pointer;
+            font-weight: bold;
+            transition: all 0.3s ease;
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2);
+        }
+
+        .btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 20px rgba(0, 0, 0, 0.3);
+        }
+
+        .btn:active {
+            transform: translateY(0);
+        }
+
+        .toolbox-style {
+            background: rgba(255, 255, 255, 0.1) !important;
+            border-radius: 10px !important;
+        }
+
+        /* Custom scrollbar for code output */
+        .code-output::-webkit-scrollbar {
+            width: 8px;
+        }
+
+        .code-output::-webkit-scrollbar-track {
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 4px;
+        }
+
+        .code-output::-webkit-scrollbar-thumb {
+            background: rgba(255, 255, 255, 0.3);
+            border-radius: 4px;
+        }
+
+        .code-output::-webkit-scrollbar-thumb:hover {
+            background: rgba(255, 255, 255, 0.5);
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="workspace-container">
+            <div class="header">
+                🐍 Python Blockly Builder
+            </div>
+            <div id="blocklyDiv"></div>
+        </div>
+        
+        <div class="code-panel">
+            <div class="code-header">
+                📄 Generated Python Code
+            </div>
+            <div class="controls">
+                <button class="btn" onclick="generateCode()">Generate Code</button>
+                <button class="btn" onclick="clearWorkspace()">Clear All</button>
+                <button class="btn" onclick="downloadCode()">Download</button>
+            </div>
+            <div class="code-output" id="codeOutput">
+# Your Python code will appear here...
+# Start by dragging blocks from the toolbox!
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Toolbox configuration with Python-specific blocks
+        const toolbox = `
+        <xml xmlns="https://developers.google.com/blockly/xml" id="toolbox" style="display: none">
+            <category name="Logic" colour="210">
+                <block type="controls_if"></block>
+                <block type="logic_compare"></block>
+                <block type="logic_operation"></block>
+                <block type="logic_negate"></block>
+                <block type="logic_boolean"></block>
+                <block type="logic_null"></block>
+                <block type="logic_ternary"></block>
+            </category>
+            
+            <category name="Loops" colour="120">
+                <block type="controls_repeat_ext">
+                    <value name="TIMES">
+                        <shadow type="math_number">
+                            <field name="NUM">10</field>
+                        </shadow>
+                    </value>
+                </block>
+                <block type="controls_whileUntil"></block>
+                <block type="controls_for">
+                    <value name="FROM">
+                        <shadow type="math_number">
+                            <field name="NUM">1</field>
+                        </shadow>
+                    </value>
+                    <value name="TO">
+                        <shadow type="math_number">
+                            <field name="NUM">10</field>
+                        </shadow>
+                    </value>
+                    <value name="BY">
+                        <shadow type="math_number">
+                            <field name="NUM">1</field>
+                        </shadow>
+                    </value>
+                </block>
+                <block type="controls_forEach"></block>
+                <block type="controls_flow_statements"></block>
+            </category>
+            
+            <category name="Math" colour="230">
+                <block type="math_number">
+                    <field name="NUM">123</field>
+                </block>
+                <block type="math_arithmetic">
+                    <value name="A">
+                        <shadow type="math_number">
+                            <field name="NUM">1</field>
+                        </shadow>
+                    </value>
+                    <value name="B">
+                        <shadow type="math_number">
+                            <field name="NUM">1</field>
+                        </shadow>
+                    </value>
+                </block>
+                <block type="math_single">
+                    <value name="NUM">
+                        <shadow type="math_number">
+                            <field name="NUM">9</field>
+                        </shadow>
+                    </value>
+                </block>
+                <block type="math_trig">
+                    <value name="NUM">
+                        <shadow type="math_number">
+                            <field name="NUM">45</field>
+                        </shadow>
+                    </value>
+                </block>
+                <block type="math_constant"></block>
+                <block type="math_number_property">
+                    <value name="NUMBER_TO_CHECK">
+                        <shadow type="math_number">
+                            <field name="NUM">0</field>
+                        </shadow>
+                    </value>
+                </block>
+                <block type="math_round">
+                    <value name="NUM">
+                        <shadow type="math_number">
+                            <field name="NUM">3.1</field>
+                        </shadow>
+                    </value>
+                </block>
+                <block type="math_random_int">
+                    <value name="FROM">
+                        <shadow type="math_number">
+                            <field name="NUM">1</field>
+                        </shadow>
+                    </value>
+                    <value name="TO">
+                        <shadow type="math_number">
+                            <field name="NUM">100</field>
+                        </shadow>
+                    </value>
+                </block>
+            </category>
+            
+            <category name="Text" colour="160">
+                <block type="text">
+                    <field name="TEXT">Hello World!</field>
+                </block>
+                <block type="text_join"></block>
+                <block type="text_append">
+                    <value name="TEXT">
+                        <shadow type="text">
+                            <field name="TEXT">abc</field>
+                        </shadow>
+                    </value>
+                </block>
+                <block type="text_length">
+                    <value name="VALUE">
+                        <shadow type="text">
+                            <field name="TEXT">abc</field>
+                        </shadow>
+                    </value>
+                </block>
+                <block type="text_isEmpty">
+                    <value name="VALUE">
+                        <shadow type="text">
+                            <field name="TEXT"></field>
+                        </shadow>
+                    </value>
+                </block>
+                <block type="text_indexOf">
+                    <value name="VALUE">
+                        <shadow type="text">
+                            <field name="TEXT">abc</field>
+                        </shadow>
+                    </value>
+                    <value name="FIND">
+                        <shadow type="text">
+                            <field name="TEXT">b</field>
+                        </shadow>
+                    </value>
+                </block>
+                <block type="text_charAt">
+                    <value name="VALUE">
+                        <shadow type="text">
+                            <field name="TEXT">abc</field>
+                        </shadow>
+                    </value>
+                </block>
+            </category>
+            
+            <category name="Lists" colour="260">
+                <block type="lists_create_with">
+                    <mutation items="0"></mutation>
+                </block>
+                <block type="lists_create_with"></block>
+                <block type="lists_repeat">
+                    <value name="NUM">
+                        <shadow type="math_number">
+                            <field name="NUM">5</field>
+                        </shadow>
+                    </value>
+                </block>
+                <block type="lists_length"></block>
+                <block type="lists_isEmpty"></block>
+                <block type="lists_indexOf">
+                    <value name="VALUE">
+                        <shadow type="lists_create_with">
+                            <mutation items="3"></mutation>
+                            <value name="ADD0">
+                                <shadow type="text">
+                                    <field name="TEXT">abc</field>
+                                </shadow>
+                            </value>
+                            <value name="ADD1">
+                                <shadow type="text">
+                                    <field name="TEXT">def</field>
+                                </shadow>
+                            </value>
+                            <value name="ADD2">
+                                <shadow type="text">
+                                    <field name="TEXT">ghi</field>
+                                </shadow>
+                            </value>
+                        </shadow>
+                    </value>
+                </block>
+                <block type="lists_getIndex">
+                    <mutation statement="false" at="true"></mutation>
+                    <field name="MODE">GET</field>
+                    <field name="WHERE">FROM_START</field>
+                    <value name="VALUE">
+                        <shadow type="lists_create_with">
+                            <mutation items="3"></mutation>
+                            <value name="ADD0">
+                                <shadow type="text">
+                                    <field name="TEXT">abc</field>
+                                </shadow>
+                            </value>
+                            <value name="ADD1">
+                                <shadow type="text">
+                                    <field name="TEXT">def</field>
+                                </shadow>
+                            </value>
+                            <value name="ADD2">
+                                <shadow type="text">
+                                    <field name="TEXT">ghi</field>
+                                </shadow>
+                            </value>
+                        </shadow>
+                    </value>
+                </block>
+                <block type="lists_setIndex">
+                    <mutation at="true"></mutation>
+                    <field name="MODE">SET</field>
+                    <field name="WHERE">FROM_START</field>
+                    <value name="LIST">
+                        <shadow type="variables_get">
+                            <field name="VAR">list</field>
+                        </shadow>
+                    </value>
+                </block>
+            </category>
+            
+            <category name="Variables" colour="330" custom="VARIABLE"></category>
+            
+            <category name="Functions" colour="290" custom="PROCEDURE"></category>
+            
+            <category name="Python I/O" colour="180">
+                <block type="text_print">
+                    <value name="TEXT">
+                        <shadow type="text">
+                            <field name="TEXT">Hello World!</field>
+                        </shadow>
+                    </value>
+                </block>
+            </category>
+        </xml>`;
+
+        // Initialize Blockly workspace with Zelos renderer
+        const workspace = Blockly.inject('blocklyDiv', {
+            toolbox: toolbox,
+            renderer: 'zelos',
+            grid: {
+                spacing: 20,
+                length: 3,
+                colour: '#ccc',
+                snap: true
+            },
+            zoom: {
+                controls: true,
+                wheel: true,
+                startScale: 1.0,
+                maxScale: 3,
+                minScale: 0.3,
+                scaleSpeed: 1.2
+            },
+            trashcan: true,
+            scrollbars: true,
+            sounds: true,
+            oneBasedIndex: false
+        });
+
+        // Auto-generate code on workspace change
+        workspace.addChangeListener(function(event) {
+            if (event.type === Blockly.Events.BLOCK_CHANGE || 
+                event.type === Blockly.Events.BLOCK_CREATE || 
+                event.type === Blockly.Events.BLOCK_DELETE ||
+                event.type === Blockly.Events.BLOCK_MOVE) {
+                generateCode();
+            }
+        });
+
+        // Generate Python code from blocks
+        function generateCode() {
+            try {
+                // Check if Python generator is available
+                if (typeof Blockly.Python === 'undefined') {
+                    console.error('Python generator not loaded');
+                    document.getElementById('codeOutput').textContent = '# Python generator not loaded. Please refresh the page.';
+                    return;
+                }
+                
+                const code = Blockly.Python.workspaceToCode(workspace);
+                const codeOutput = document.getElementById('codeOutput');
+                
+                if (code.trim() === '') {
+                    codeOutput.textContent = '# Your Python code will appear here...\n# Start by dragging blocks from the toolbox!';
+                } else {
+                    codeOutput.textContent = code;
+                }
+            } catch (error) {
+                console.error('Error generating code:', error);
+                document.getElementById('codeOutput').textContent = '# Error generating code: ' + error.message + '\n# Please check your blocks and try again.';
+            }
+        }
+
+        // Clear the workspace
+        function clearWorkspace() {
+            if (confirm('Are you sure you want to clear all blocks?')) {
+                workspace.clear();
+                generateCode();
+            }
+        }
+
+        // Download generated code as Python file
+        function downloadCode() {
+            try {
+                if (typeof Blockly.Python === 'undefined') {
+                    alert('Python generator not loaded. Please refresh the page.');
+                    return;
+                }
+                
+                const code = Blockly.Python.workspaceToCode(workspace);
+                if (code.trim() === '') {
+                    alert('No code to download! Please create some blocks first.');
+                    return;
+                }
+                
+                const blob = new Blob([code], { type: 'text/plain' });
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = 'blockly_code.py';
+                document.body.appendChild(a);
+                a.click();
+                document.body.removeChild(a);
+                URL.revokeObjectURL(url);
+            } catch (error) {
+                console.error('Error downloading code:', error);
+                alert('Error downloading code: ' + error.message);
+            }
+        }
+
+        // Handle window resize
+        window.addEventListener('resize', function() {
+            Blockly.svgResize(workspace);
+        });
+
+        // Initialize with sample blocks
+        window.addEventListener('load', function() {
+            // Wait a bit for all scripts to load
+            setTimeout(function() {
+                try {
+                    // Add a simple "Hello World" example
+                    const xml = '<xml xmlns="https://developers.google.com/blockly/xml"><block type="text_print" id="sample" x="100" y="100"><value name="TEXT"><shadow type="text"><field name="TEXT">Welcome to Python Blockly Builder!</field></shadow></value></block></xml>';
+                    Blockly.Xml.domToWorkspace(Blockly.Xml.textToDom(xml), workspace);
+                    generateCode();
+                } catch (error) {
+                    console.error('Error loading sample blocks:', error);
+                }
+            }, 500);
+        });
+    </script>
+</body>
+</html>
